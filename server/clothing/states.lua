@@ -155,6 +155,13 @@ w.callback.register('w_clothing:clothing:setState', function(src, group, value)
     return Actions.setState(src, group, value)
 end)
 
+w.callback.register('w_clothing:clothing:getStates', function(src)
+    local active = WCSessions.activeCharacter(src)
+    if not active then return fail('NO_CHARACTER') end
+    local ok, app = pcall(WCAppearanceRepo.load, active.charid, { src = src })
+    return WCResult.ok({ states = Actions.states(src, ok and app or nil, active.charid) })
+end)
+
 AddEventHandler('w_clothing:server:appearanceChanged', function(src, _, kind)
     if kind ~= 'clothingState' and src ~= nil then Actions.forget(src) end
 end)

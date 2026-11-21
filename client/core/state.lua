@@ -32,6 +32,27 @@ function WCState.set(app)
     end
 end
 
+local statesSynced = false
+
+local function syncSavedStates()
+    if statesSynced then return end
+    statesSynced = true
+    CreateThread(function()
+        local ok, res = pcall(w.callback.await, 'w_clothing:clothing:getStates', false)
+        if ok and type(res) == 'table' and res.ok and type(res.data) == 'table' and type(res.data.states) == 'table' then
+            if type(WCState.appearance) == 'table' then
+                WCState.appearance.clothing = type(WCState.appearance.clothing) == 'table' and WCState.appearance.clothing or {}
+                WCState.appearance.clothing.states = type(WCState.appearance.clothing.states) == 'table' and WCState.appearance.clothing.states or {}
+                for k, v in pairs(res.data.states) do
+                    WCState.appearance.clothing.states[k] = v
+                end
+            end
+        else
+            statesSynced = false
+        end
+    end)
+end
+
 --- The saved appearance (a copy), or nil.
 --  When running alongside w_creators, initializes local state from w_creators' active character appearance
 --  without overwriting w_clothing's own runtime/saved clothing states on subsequent reads.
@@ -40,6 +61,7 @@ function WCState.get()
         local ok, ext = pcall(function() return exports.w_creators:GetAppearance() end)
         if ok and type(ext) == 'table' then
             WCState.appearance = WCUtil.copy(ext)
+            syncSavedStates()
         end
     end
     if not WCState.appearance then return nil end
@@ -106,6 +128,7 @@ end
 function WCState.clear()
     WCState.character = nil
     WCState.appearance = nil
+    statesSynced = false
 end
 
 --- A named client lock.
