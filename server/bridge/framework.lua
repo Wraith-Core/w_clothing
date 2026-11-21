@@ -102,13 +102,24 @@ end)
 Bridge = {}
 
 function Bridge.GetCharId(src)
+    if type(GetResourceState) == 'function' and GetResourceState('w_creators') == 'started' then
+        local ok, active = pcall(function() return exports.w_creators:GetActiveCharacter(src) end)
+        if ok and type(active) == 'table' and active.charid ~= nil and tostring(active.charid) ~= '' then
+            return tostring(active.charid)
+        end
+        return nil
+    end
     if w and w.framework and type(w.framework.getUserIdentifiers) == 'function' then
         local ok, ids = pcall(function() return w.framework:getUserIdentifiers(src) end)
-        if ok and type(ids) == 'table' and ids.charid ~= nil and tostring(ids.charid) ~= '' then
-            local cid = tostring(ids.charid)
-            if type(w.framework.is) == 'function' and w.framework:is('vorp') and not cid:find('^vorp:') then
-                cid = 'vorp:' .. cid
+        if ok and type(ids) == 'table' then
+            local isVorp = type(w.framework.is) == 'function' and w.framework:is('vorp')
+            if isVorp and ids.charid ~= nil and tostring(ids.charid) ~= '' then
+                local cid = tostring(ids.charid)
+                return cid:find('^vorp:') and cid or ('vorp:' .. cid)
             end
+            local cid = (ids.charid ~= nil and ids.charid ~= 0 and ids.charid ~= '0' and tostring(ids.charid) ~= '')
+                and tostring(ids.charid)
+                or (type(ids.identifier) == 'string' and ids.identifier ~= '' and ids.identifier or nil)
             return cid
         end
     end
