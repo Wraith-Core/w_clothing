@@ -40,18 +40,14 @@ SS.KINDS = {
 --- The active character of a player: { charid, sex? } or nil.
 --  Resolved through w_lib's framework bridge (works identically on w_core, VORP, RSG and QBR).
 function SS.activeCharacter(src)
-    if w and w.framework and type(w.framework.getUserIdentifiers) == 'function' then
-        local ok, ids = pcall(function() return w.framework:getUserIdentifiers(src) end)
-        if ok and type(ids) == 'table' and ids.charid ~= nil and tostring(ids.charid) ~= '' then
-            local cid = tostring(ids.charid)
-            if type(w.framework.is) == 'function' and w.framework:is('vorp') and not cid:find('^vorp:') then
-                cid = 'vorp:' .. cid
-            end
-            return { charid = cid }
-        end
-    end
     local ok, charid = pcall(Bridge.GetCharId, src)
-    if ok and charid then return { charid = tostring(charid) } end
+    if ok and charid and tostring(charid) ~= '' then
+        local cid = tostring(charid)
+        if type(WCAppearanceRepo) == 'table' and type(WCAppearanceRepo.rememberSource) == 'function' then
+            WCAppearanceRepo.rememberSource(cid, src)
+        end
+        return { charid = cid }
+    end
     return nil
 end
 
