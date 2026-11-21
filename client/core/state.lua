@@ -33,23 +33,36 @@ function WCState.set(app)
 end
 
 --- The saved appearance (a copy), or nil.
---  When running alongside w_creators, keeps local state synced with w_creators' active character appearance.
+--  When running alongside w_creators, initializes local state from w_creators' active character appearance
+--  without overwriting w_clothing's own runtime/saved clothing states on subsequent reads.
 function WCState.get()
-    if GetResourceState('w_creators') == 'started' then
+    if not WCState.appearance and GetResourceState('w_creators') == 'started' then
         local ok, ext = pcall(function() return exports.w_creators:GetAppearance() end)
         if ok and type(ext) == 'table' then
             WCState.appearance = WCUtil.copy(ext)
-            return WCUtil.copy(ext)
         end
     end
     if not WCState.appearance then return nil end
     return WCUtil.copy(WCState.appearance)
 end
 
--- Keep local state warm whenever w_creators applies/reloads the character's appearance.
+-- Keep local state warm whenever w_creators applies/reloads the character's appearance,
+-- preserving w_clothing's current clothing states when the equipped items are unchanged.
 RegisterNetEvent('w_creators:client:applyAppearance', function(app)
     if type(app) == 'table' and not WCState.inEditor() then
-        WCState.set(app)
+        local prevStates = WCState.appearance and WCState.appearance.clothing and WCState.appearance.clothing.states
+        local prevEq = WCState.appearance and WCState.appearance.clothing and WCState.appearance.clothing.equipped
+        local nextApp = WCUtil.copy(app)
+        if type(prevStates) == 'table' and type(prevEq) == 'table' and type(nextApp.clothing) == 'table' then
+            nextApp.clothing.states = type(nextApp.clothing.states) == 'table' and nextApp.clothing.states or {}
+            local nextEq = type(nextApp.clothing.equipped) == 'table' and nextApp.clothing.equipped or {}
+            if WCUtil.deepEqual(prevEq, nextEq) then
+                for k, v in pairs(prevStates) do
+                    nextApp.clothing.states[k] = v
+                end
+            end
+        end
+        WCState.set(nextApp)
     end
 end)
 

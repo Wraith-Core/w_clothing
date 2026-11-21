@@ -320,20 +320,23 @@ function Repo.save(charid, app, extra, opts)
         end
     end
 
-    local stdClothes = Repo.standardClothes(app)
-    if w and w.framework and type(w.framework.updateUserClothes) == 'function' then
-        local okFw, fwErr = pcall(function()
-            w.framework:updateUserClothes(src, WCUtil.copy(stdClothes), true)
-        end)
-        if not okFw then
-            WCDebug.warn('appearance', 'w.framework:updateUserClothes failed for %s: %s', tostring(src), tostring(fwErr))
-            return false, 'DATABASE_ERROR'
+    local statesOnly = type(opts) == 'table' and opts.statesOnly == true
+    if not statesOnly then
+        local stdClothes = Repo.standardClothes(app)
+        if w and w.framework and type(w.framework.updateUserClothes) == 'function' then
+            local okFw, fwErr = pcall(function()
+                w.framework:updateUserClothes(src, WCUtil.copy(stdClothes), true)
+            end)
+            if not okFw then
+                WCDebug.warn('appearance', 'w.framework:updateUserClothes failed for %s: %s', tostring(src), tostring(fwErr))
+                return false, 'DATABASE_ERROR'
+            end
         end
-    end
-    if type(GetResourceState) == 'function' and GetResourceState('w_creators') == 'started' and GetResourceState('w_core') ~= 'started' then
-        pcall(function()
-            exports.w_creators:SetClothes(src, WCUtil.copy(stdClothes), true)
-        end)
+        if type(GetResourceState) == 'function' and GetResourceState('w_creators') == 'started' and GetResourceState('w_core') ~= 'started' then
+            pcall(function()
+                exports.w_creators:SetClothes(src, WCUtil.copy(stdClothes), true)
+            end)
+        end
     end
 
     Repo.cache[key(charid)] = { app = WCUtil.copy(app) }

@@ -96,7 +96,7 @@ local function persist(src, charid, group, value)
         if not WCClothingStates.applicable(saved, group) then return nil, 'STATE_NOT_APPLICABLE' end
         if WCClothingStates.current(saved, group) == value then return saved end
         saved.clothing.states[group] = value
-        local saveOk, result = WCAppearanceRepo.save(charid, saved)
+        local saveOk, result = WCAppearanceRepo.save(charid, saved, nil, { statesOnly = true })
         if not saveOk then return nil, result or 'DATABASE_ERROR' end
         return result, 'saved'
     end)
