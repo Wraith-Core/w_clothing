@@ -34,42 +34,17 @@ local function playerId(src)
     return math.tointeger(src)
 end
 
-local function standardClothes(app)
-    local clothes = {}
-    local equipped = type(app.clothing) == 'table' and app.clothing.equipped or {}
-    local tints = type(app.clothing) == 'table' and app.clothing.tints or {}
-    for category, hash in pairs(equipped) do
-        local entry = { hash = hash }
-        local tint = tints[category]
-        if type(tint) == 'table' then
-            entry.palette, entry.tint0, entry.tint1, entry.tint2 = tint.palette, tint.tint0, tint.tint1, tint.tint2
-        end
-        clothes[category] = entry
-    end
-    return clothes
-end
-
-local function pushFrameworkClothes(src, app)
-    if GetResourceState('w_creators') == 'started' then return end
-    if Config.Standalone and Config.Standalone.syncToFramework == false then return end
-    if w and w.framework and type(w.framework.updateUserClothes) == 'function' then
-        pcall(function() w.framework:updateUserClothes(src, standardClothes(app), true) end)
-    end
-end
-
---- Cache a player's appearance and send it to every client (delegates to w_creators when running).
+--- Cache a player's appearance and send it to every client.
+--  Note: Repo.save already persisted clothes through w.framework:updateUserClothes (which on
+--  w_core + w_creators automatically triggers w_creators' render & OneSync broadcast).
 ---@return boolean sent
 function Sync.broadcast(src, app)
     src = playerId(src)
     if not src or type(app) ~= 'table' then return false end
     cache[src] = WCUtil.copy(app)
-    local active = WCSessions and WCSessions.activeCharacter and WCSessions.activeCharacter(src)
-    TriggerEvent('w_appearance:updated', src, active and active.charid or nil, app)
     if GetResourceState('w_creators') == 'started' then
-        local ok = pcall(function() exports.w_creators:SyncAppearanceFromExternal(src, app) end)
-        if ok then return true end
+        return true
     end
-    pushFrameworkClothes(src, app)
     TriggerClientEvent('w_clothing:client:applyRemoteAppearance', -1, src, app)
     return true
 end

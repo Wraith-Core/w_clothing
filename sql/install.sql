@@ -1,19 +1,5 @@
 -- Reference schema for w_clothing (applied automatically by server/core/migrations.lua)
-CREATE TABLE IF NOT EXISTS `characters_appearence` (
-    `id` INT NOT NULL AUTO_INCREMENT,
-    `charid` VARCHAR(64) NOT NULL,
-    `isMale` TINYINT(1) NOT NULL DEFAULT 1,
-    `name` VARCHAR(60) DEFAULT NULL,
-    `age` INT DEFAULT NULL,
-    `faceFeatures` LONGTEXT DEFAULT NULL,
-    `overlays` LONGTEXT DEFAULT NULL,
-    `components` LONGTEXT DEFAULT NULL,
-    `appearance` LONGTEXT NULL,
-    `appearance_version` INT NOT NULL DEFAULT 2,
-    `updated_at` TIMESTAMP NULL,
-    PRIMARY KEY (`id`),
-    KEY `charid` (`charid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+-- Note: Character skin & equipped clothes are managed exclusively via w_lib (w.framework).
 
 CREATE TABLE IF NOT EXISTS `w_creators_clothes` (
     `id` INT NOT NULL AUTO_INCREMENT,
@@ -58,6 +44,13 @@ CREATE TABLE IF NOT EXISTS `w_creators_outfits` (
     `updated_at` TIMESTAMP NULL,
     PRIMARY KEY (`id`),
     INDEX `charid_idx` (`charid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `w_clothing_states` (
+    `charid` VARCHAR(100) NOT NULL,
+    `states` LONGTEXT NOT NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`charid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `w_creators_locations` (

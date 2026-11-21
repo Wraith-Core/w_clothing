@@ -1,8 +1,8 @@
 -- =====================================================================
 --  server/core/migrations.lua  —  w_clothing idempotent schema migrations
---  Shares characters_appearence, w_creators_clothes, w_creators_colorways,
---  w_creators_outfits and w_creators_locations with w_creators for zero-loss
---  migration and seamless coexistence, while working 100% standalone.
+--  Character skin & equipped clothes are read and saved exclusively through
+--  w_lib (w.framework), so w_clothing never creates or touches any character
+--  appearance table (works natively on w_core, VORP, RSG and QBR).
 -- =====================================================================
 
 WCMigrations = { list = {}, done = false, ok = nil, applied = {} }
@@ -89,24 +89,7 @@ function M.run()
     return true, applied
 end
 
-M.register('001_base_tables', function()
-    w.database.query.await([[
-        CREATE TABLE IF NOT EXISTS `characters_appearence` (
-            `id` INT NOT NULL AUTO_INCREMENT,
-            `charid` VARCHAR(64) NOT NULL,
-            `isMale` TINYINT(1) NOT NULL DEFAULT 1,
-            `name` VARCHAR(60) DEFAULT NULL,
-            `age` INT DEFAULT NULL,
-            `faceFeatures` LONGTEXT DEFAULT NULL,
-            `overlays` LONGTEXT DEFAULT NULL,
-            `components` LONGTEXT DEFAULT NULL,
-            `appearance` LONGTEXT NULL,
-            `appearance_version` INT NOT NULL DEFAULT 2,
-            `updated_at` TIMESTAMP NULL,
-            PRIMARY KEY (`id`),
-            KEY `charid` (`charid`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-    ]])
+M.register('001_owned_clothes', function()
     w.database.query.await([[
         CREATE TABLE IF NOT EXISTS `w_creators_clothes` (
             `id` INT NOT NULL AUTO_INCREMENT,
@@ -126,20 +109,16 @@ M.register('001_base_tables', function()
             UNIQUE KEY `char_item` (`charid`, `hash`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ]])
-    M.addColumn('characters_appearence', 'appearance', 'LONGTEXT NULL')
-    M.addColumn('characters_appearence', 'appearance_version', 'INT NOT NULL DEFAULT 2')
-    M.addColumn('characters_appearence', 'updated_at', 'TIMESTAMP NULL')
     M.addColumn('w_creators_clothes', 'source', 'VARCHAR(16) NULL')
     M.addColumn('w_creators_clothes', 'acquired_at', 'TIMESTAMP NULL')
     M.addColumn('w_creators_clothes', 'price_paid', 'DECIMAL(10,2) NULL')
     M.addColumn('w_creators_clothes', 'currency', 'VARCHAR(8) NULL')
 end, function()
-    return M.tableExists('characters_appearence') and M.tableExists('w_creators_clothes')
-        and M.columnsExist('characters_appearence', { 'appearance', 'appearance_version', 'updated_at' })
+    return M.tableExists('w_creators_clothes')
         and M.columnsExist('w_creators_clothes', { 'source', 'acquired_at', 'price_paid', 'currency' })
 end)
 
-M.register('002_outfits_and_colorways', function()
+M.register('002_outfits_colorways_states', function()
     w.database.query.await([[
         CREATE TABLE IF NOT EXISTS `w_creators_outfits` (
             `id` INT NOT NULL AUTO_INCREMENT,
@@ -169,8 +148,17 @@ M.register('002_outfits_and_colorways', function()
             UNIQUE KEY `char_colorway` (`charid`, `hash`, `palette`, `tint0`, `tint1`, `tint2`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ]])
+    w.database.query.await([[
+        CREATE TABLE IF NOT EXISTS `w_clothing_states` (
+            `charid` VARCHAR(100) NOT NULL,
+            `states` LONGTEXT NOT NULL,
+            `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`charid`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ]])
 end, function()
     return M.tableExists('w_creators_outfits') and M.tableExists('w_creators_colorways')
+        and M.tableExists('w_clothing_states')
 end)
 
 M.register('003_clothing_locations', function()
@@ -185,7 +173,6 @@ M.register('003_clothing_locations', function()
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ]])
-    -- Seed only when no clothing/wardrobe locations exist yet (keeps existing Red River staff edits intact)
     local existing = tonumber(w.database.scalar.await(
         "SELECT COUNT(*) FROM `w_creators_locations` WHERE `type` IN ('clothing', 'wardrobe')")) or 0
     if existing == 0 then

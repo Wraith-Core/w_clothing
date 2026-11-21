@@ -101,6 +101,7 @@ w_lib {
     'locale',
     'component',
     'callback',
+    'framework-bridge',
 }
 
 escrow_ignore {

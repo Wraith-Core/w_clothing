@@ -38,12 +38,16 @@ SS.KINDS = {
 }
 
 --- The active character of a player: { charid, sex? } or nil.
---  Uses w_creators when running alongside it, otherwise the framework bridge (VORP / RSG / QBR / w_core).
+--  Resolved through w_lib's framework bridge (works identically on w_core, VORP, RSG and QBR).
 function SS.activeCharacter(src)
-    if GetResourceState('w_creators') == 'started' then
-        local ok, active = pcall(function() return exports.w_creators:GetActiveCharacter(src) end)
-        if ok and type(active) == 'table' and active.charid then
-            return { charid = tostring(active.charid), sex = active.sex }
+    if w and w.framework and type(w.framework.getUserIdentifiers) == 'function' then
+        local ok, ids = pcall(function() return w.framework:getUserIdentifiers(src) end)
+        if ok and type(ids) == 'table' and ids.charid ~= nil and tostring(ids.charid) ~= '' then
+            local cid = tostring(ids.charid)
+            if type(w.framework.is) == 'function' and w.framework:is('vorp') and not cid:find('^vorp:') then
+                cid = 'vorp:' .. cid
+            end
+            return { charid = cid }
         end
     end
     local ok, charid = pcall(Bridge.GetCharId, src)
