@@ -100,18 +100,50 @@ local function fromFramework(src, charid, skin, clothes)
 
     local app = AppearanceSchema.default(sex)
     if type(skin) == 'table' then
-        app.head.head = u32nz(skin.headHash) or app.head.head
-        app.head.eyes = u32nz(skin.eyesHash) or app.head.eyes
-        app.head.teeth = u32nz(skin.teethHash) or app.head.teeth
-        app.body.upper = u32nz(skin.bodyUpperHash) or app.body.upper
-        app.body.lower = u32nz(skin.bodyLowerHash) or app.body.lower
+        local model = 'mp_' .. sex
+        local headHash = u32nz(skin.headHash)
+        if not headHash and (tonumber(skin.headIndex) or tonumber(skin.skinTone)) and w and w.component and w.component.getHeadFromSkinTone then
+            local name = w.component.getHeadFromSkinTone(model, tonumber(skin.headIndex) or 1, tonumber(skin.skinTone) or 1)
+            headHash = name and u32nz(GetHashKey(name)) or nil
+        end
+        local eyesHash = u32nz(skin.eyesHash)
+        if not eyesHash and tonumber(skin.eyesIndex) and w and w.component and w.component.getEyesFromIndex then
+            local name = w.component.getEyesFromIndex(model, tonumber(skin.eyesIndex))
+            eyesHash = name and u32nz(GetHashKey(name)) or nil
+        end
+        local teethHash = u32nz(skin.teethHash)
+        if not teethHash and tonumber(skin.teethIndex) and w and w.component and w.component.getTeethFromIndex then
+            local name = w.component.getTeethFromIndex(model, tonumber(skin.teethIndex))
+            teethHash = name and u32nz(GetHashKey(name)) or nil
+        end
+        local bodyUpperHash = u32nz(skin.bodyUpperHash)
+        if not bodyUpperHash and (tonumber(skin.bodiesIndex) or tonumber(skin.skinTone)) and w and w.component and w.component.getBodiesUpperFromSkinTone then
+            local name = w.component.getBodiesUpperFromSkinTone(model, tonumber(skin.bodiesIndex) or 1, tonumber(skin.skinTone) or 1)
+            bodyUpperHash = name and u32nz(GetHashKey(name)) or nil
+        end
+        local bodyLowerHash = u32nz(skin.bodyLowerHash)
+        if not bodyLowerHash and (tonumber(skin.bodiesIndex) or tonumber(skin.skinTone)) and w and w.component and w.component.getBodiesLowerFromSkinTone then
+            local name = w.component.getBodiesLowerFromSkinTone(model, tonumber(skin.bodiesIndex) or 1, tonumber(skin.skinTone) or 1)
+            bodyLowerHash = name and u32nz(GetHashKey(name)) or nil
+        end
+
+        app.head.head = headHash or app.head.head
+        app.head.eyes = eyesHash or app.head.eyes
+        app.head.teeth = teethHash or app.head.teeth
+        app.body.upper = bodyUpperHash or app.body.upper
+        app.body.lower = bodyLowerHash or app.body.lower
         if type(skin.bodyScale) == 'number' and WCUtil.isFinite(skin.bodyScale) then
             app.body.height = skin.bodyScale
         end
-        local waistHash = u32nz(skin.bodyWeight)
-        if waistHash and AppearanceSchema.WAIST_TYPES then
-            for i, wh in ipairs(AppearanceSchema.WAIST_TYPES) do
-                if WCUtil.u32(wh) == waistHash then app.body.weight = i; break end
+        local rawWeight = tonumber(skin.bodyWeight)
+        if rawWeight and rawWeight >= 1 and rawWeight <= 21 and rawWeight % 1 == 0 then
+            app.body.weight = math.floor(rawWeight)
+        else
+            local waistHash = u32nz(skin.bodyWeight)
+            if waistHash and AppearanceSchema.WAIST_TYPES then
+                for i, wh in ipairs(AppearanceSchema.WAIST_TYPES) do
+                    if WCUtil.u32(wh) == waistHash then app.body.weight = i; break end
+                end
             end
         end
         local buildHash = u32nz(skin.bodyType)
@@ -215,6 +247,22 @@ function Repo.load(charid, opts)
 
     if not src then return nil, { missing = true } end
 
+    if type(GetResourceState) == 'function' and GetResourceState('w_creators') == 'started' then
+        local okCr, cr = pcall(function() return exports.w_creators:GetAppearance(src) end)
+        if okCr and type(cr) == 'table' and type(cr.appearance) == 'table' then
+            local app = WCUtil.copy(cr.appearance)
+            local savedStates = loadSavedStates(charid)
+            if next(savedStates) ~= nil then
+                app.clothing = type(app.clothing) == 'table' and app.clothing or {}
+                app.clothing.states = type(app.clothing.states) == 'table' and app.clothing.states or {}
+                for k, v in pairs(savedStates) do app.clothing.states[k] = v end
+            end
+            app = (AppearanceSchema.sanitize(app, PERSISTED))
+            Repo.cache[key(charid)] = { app = WCUtil.copy(app) }
+            return WCUtil.copy(app), { version = AppearanceSchema.VERSION, cached = false, defaultsUsed = {}, degraded = false }
+        end
+    end
+
     local skin, clothes = nil, nil
     if w and w.framework then
         if type(w.framework.getUserSkin) == 'function' then
@@ -272,14 +320,20 @@ function Repo.save(charid, app, extra, opts)
         end
     end
 
+    local stdClothes = Repo.standardClothes(app)
     if w and w.framework and type(w.framework.updateUserClothes) == 'function' then
         local okFw, fwErr = pcall(function()
-            w.framework:updateUserClothes(src, Repo.standardClothes(app), true)
+            w.framework:updateUserClothes(src, WCUtil.copy(stdClothes), true)
         end)
         if not okFw then
             WCDebug.warn('appearance', 'w.framework:updateUserClothes failed for %s: %s', tostring(src), tostring(fwErr))
             return false, 'DATABASE_ERROR'
         end
+    end
+    if type(GetResourceState) == 'function' and GetResourceState('w_creators') == 'started' and GetResourceState('w_core') ~= 'started' then
+        pcall(function()
+            exports.w_creators:SetClothes(src, WCUtil.copy(stdClothes), true)
+        end)
     end
 
     Repo.cache[key(charid)] = { app = WCUtil.copy(app) }
