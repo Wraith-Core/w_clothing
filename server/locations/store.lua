@@ -32,10 +32,48 @@ local function hasAce(src, ace)
     return done and (allowed == true or allowed == 1)
 end
 
+local function isCallable(fn)
+    if type(fn) == 'function' then return true end
+    if type(fn) == 'table' then
+        if fn.__cfx_functionReference ~= nil then return true end
+        local mt = getmetatable(fn)
+        return type(mt) == 'table' and mt.__call ~= nil
+    end
+    return false
+end
+
+local function isFrameworkAdmin(src)
+    if type(GetResourceState) ~= 'function' then return false end
+    if GetResourceState('rsg-core') == 'started' then
+        local ok, core = pcall(function() return exports['rsg-core']:GetCoreObject() end)
+        if ok and type(core) == 'table' and type(core.Functions) == 'table' and isCallable(core.Functions.HasPermission) then
+            local okA, isA = pcall(core.Functions.HasPermission, src, 'admin')
+            if okA and isA then return true end
+            local okG, isG = pcall(core.Functions.HasPermission, src, 'god')
+            if okG and isG then return true end
+        end
+    end
+    if GetResourceState('vorp_core') == 'started' then
+        local ok, core = pcall(function() return exports.vorp_core:GetCore() end)
+        if ok and type(core) == 'table' and isCallable(core.getUser) then
+            local okU, user = pcall(core.getUser, src)
+            if okU and type(user) == 'table' then
+                local grp = isCallable(user.getGroup) and select(2, pcall(user.getGroup)) or user.getGroup
+                if grp == 'admin' or grp == 'superadmin' or grp == 'owner' then return true end
+            end
+        end
+    end
+    return false
+end
+
 local function isAdmin(src)
     if src == 0 then return false end
     local admin = Config.Admin or {}
-    return hasAce(src, admin.ace) or hasAce(src, admin.fallbackAce)
+    return hasAce(src, admin.ace)
+        or hasAce(src, admin.fallbackAce)
+        or hasAce(src, 'group.admin')
+        or hasAce(src, 'command')
+        or isFrameworkAdmin(src)
 end
 P.isAdmin = isAdmin
 
@@ -391,13 +429,22 @@ function P.action(src, op, args)
         return fail('invalid')
     end
     if not done then return fail(extra or 'invalid') end
-    if WRITES[op] then P.publish() end
+    if WRITES[op] then
+        P.publish()
+        TriggerEvent('w_locations:changed', GetCurrentResourceName())
+    end
     local data = P.board()
     if type(extra) == 'table' then
         for k, v in pairs(extra) do data[k] = v end
     end
     return { ok = true, data = data }
 end
+
+AddEventHandler('w_locations:changed', function(fromResource)
+    if fromResource ~= GetCurrentResourceName() then
+        CreateThread(P.load)
+    end
+end)
 
 w.callback.register('w_clothing:board:action', function(src, op, args)
     return P.action(src, op, args)
