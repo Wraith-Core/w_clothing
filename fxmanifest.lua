@@ -5,7 +5,7 @@ lua54 'yes'
 name 'w_clothing'
 author 'Wraith Studio'
 description 'Standalone clothing stores, wardrobes, saved outfits and clothing states. Compatible with w_core, VORP, RSG and QBR.'
-version '1.0.0'
+version '1.0.1'
 
 shared_scripts {
     '@w_lib/init.lua',
