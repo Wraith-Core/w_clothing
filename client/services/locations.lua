@@ -185,43 +185,61 @@ local function placeOnStand(ped, stand)
     SetEntityHeading(ped, stand[4])
 end
 
---- Private bucket, fade, then the move to the fitting stand. Returns true | false, Result.
+--- Private bucket, tailor escort / catalogue reading, fade, then the move to the fitting stand.
+--- Returns true | false, Result.
 local function enterFittingRoom(flow, preview)
     local x, y, z, h = CreatorScene.coords(preview)
     if not x then return false, WCResult.fail('INVALID_PAYLOAD') end
     local ped = PlayerPedId()
     local at = GetEntityCoords(ped)
     flow.saved = { at.x, at.y, at.z, GetEntityHeading(ped) }
-    -- a store with a catalogue book: the player leafs through it first, in the shared world where
-    -- the others see it (bounded; a failed or cut-short reading never stops the visit)
-    if flow.kind == 'store' and flow.location and WCCatalogue.book(flow.location) then
-        local okRead, read = pcall(WCCatalogue.enter, flow.location)
-        flow.reading = okRead and read == true
-        -- the reading yielded for seconds: a flow stopped meanwhile (death, the server closing the
-        -- session) must not reach the prepare. Without a session the server would take it for the
-        -- start of a character switch, and the player would be faded and moved for nothing.
+
+    local useEscort = flow.kind == 'store' and flow.location
+        and type(WCEscort) == 'table' and WCEscort.enabled() and WCEscort.door(flow.location) ~= nil
+
+    if useEscort then
+        -- Isolate the player first so other players cannot collide with or block the tailor walk.
+        local prepared = call('w_clothing:scene:prepare')
+        if not prepared.ok then return false, prepared end
+        flow.isolated = true
+        local exitSpot = WCEscort.exitSpot(flow.location)
+        if exitSpot then flow.saved = exitSpot end
+        local okEsc, escorted = pcall(WCEscort.enter, flow.location, function()
+            return flow.finished or flow.abortReason ~= nil or isDead()
+        end)
+        flow.escorting = okEsc and escorted == true
         if flow.finished or flow.abortReason or isDead() then
-            if flow.reading then
-                flow.reading = false
-                pcall(WCCatalogue.stop)
-            end
+            flow.escorting = false
+            pcall(WCEscort.release, true)
             return nil
         end
+    else
+        -- Fallback when escort is disabled or a custom store has no doorRoom: catalogue book reading.
+        if flow.kind == 'store' and flow.location and WCCatalogue.book(flow.location) then
+            local okRead, read = pcall(WCCatalogue.enter, flow.location)
+            flow.reading = okRead and read == true
+            if flow.finished or flow.abortReason or isDead() then
+                if flow.reading then
+                    flow.reading = false
+                    pcall(WCCatalogue.stop)
+                end
+                return nil
+            end
+        end
+        local prepared = call('w_clothing:scene:prepare')
+        if not prepared.ok then return false, prepared end
+        flow.isolated = true
     end
-    local prepared = call('w_clothing:scene:prepare')
-    if not prepared.ok then return false, prepared end
-    flow.isolated = true
+
     flow.faded = true
     StartFade(F.FADE_MS, F.FADE_KEY)
-    -- ⚠️ The reading ends under the fade, and the player is let go BEFORE he is moved. The scene
-    --    holds the player where it plays him (at the counter, facing the book); it was freed and the
-    --    player moved in the same frame, and the scene's release put him back: he never reached the
-    --    fitting room. The editor then opened on him at the counter, and its camera, in front of him,
-    --    stood behind the tailor across the counter: the tailor's back filled the screen, his head
-    --    above the frame (the owner's screenshot of Valentine). Now: out of the scene, his tasks
-    --    cleared, a moment for the game to settle, then the move (the Jump On store does the same,
-    --    with the same 100 ms), checked again below before the screen fades in.
     ped = PlayerPedId()
+    if flow.escorting then
+        flow.escorting = false
+        -- Under the black screen fade: return the tailor to his counter, delete the beacon, turn off
+        -- spectator mode and restore HUD/radar state right before WCPreviewEnv.enter() captures it.
+        pcall(WCEscort.release, true)
+    end
     if flow.reading then pcall(WCCatalogue.release, ped) end
     ClearPedTasksImmediately(ped)
     Wait(F.RELEASE_MS)
@@ -287,6 +305,10 @@ end
 --  floor) and the fade. Each step runs once.
 local function leave(flow)
     local returned = flow.moved == true
+    if flow.escorting or (type(WCEscort) == 'table' and WCEscort.active()) then
+        flow.escorting = false
+        pcall(WCEscort.release, not flow.env)
+    end
     if flow.moved and not flow.faded then
         flow.faded = true
         StartFade(F.FADE_MS, F.FADE_KEY)
@@ -668,6 +690,7 @@ local function stopFlow()
     release(flow)
     flow.finished = true
     local ped = PlayerPedId()
+    if type(WCEscort) == 'table' then pcall(WCEscort.release, true) end
     pcall(WCCatalogue.stop)
     if editorSession(flow) then pcall(WCEditor.close) end
     if flow.env then
@@ -1028,6 +1051,17 @@ end
 
 --- The built points (for diagnostics and tests).
 function P.points() return points end
+
+--- The spawned local NPC entity of a location id, or nil.
+function P.npcOf(locationId)
+    if type(locationId) ~= 'string' then return nil end
+    for _, point in ipairs(points) do
+        if point.loc and point.loc.id == locationId and point.npc then
+            return point.npc
+        end
+    end
+    return nil
+end
 
 CreateThread(function()
     -- the server's places first (nil while it has not loaded them: the broadcast brings them later)

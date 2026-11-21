@@ -24,6 +24,7 @@ local function merge(defaults, loc)
     -- Config values are kept as given (vectors stay vectors): WCUtil.copy would turn a vector4
     -- into a plain table and lose its heading field names
     out.coords, out.preview, out.book = loc.coords, loc.preview, loc.book
+    out.doorRoom, out.exitWardrobe = loc.doorRoom, loc.exitWardrobe
     if loc.npc ~= nil then out.npc = loc.npc end
     if loc.chair ~= nil then out.chair = loc.chair end
     return out
@@ -197,7 +198,7 @@ end
 --  Plain form (database JSON, network): every spot is { x, y, z[, h] } with two decimals,
 --  npc = { model, x, y, z, h } | false, chair = { kind = 'world' | 'prop', model, x, y, z, h }.
 -- ---------------------------------------------------------------------
-local SPOTS = { coords = false, preview = true, book = true }
+local SPOTS = { coords = false, preview = true, book = true, doorRoom = false, exitWardrobe = true }
 
 local function round(n) return math.floor(n * 100 + 0.5) / 100 end
 

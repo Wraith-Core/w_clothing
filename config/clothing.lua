@@ -275,7 +275,7 @@ Config.Clothing.fittingLight = {
 --  ⚠️ Needs a check in game at the four books (the scene's entity names in particular).
 -- ---------------------------------------------------------------------
 Config.Clothing.catalogue = {
-    enabled = true,
+    enabled = false,
     model = 'mp001_s_mp_catalogue01x_store',
     scene = {
         dict = 'script@ambient@shop@CATALOG_PLAYER',
@@ -290,6 +290,30 @@ Config.Clothing.catalogue = {
     },
     -- the clips of the exit playlist, loaded before it plays
     exitDict = 'mech_inspection@catalog',
+}
+
+-- ---------------------------------------------------------------------
+--  Tailor escort to the fitting room (client/clothing/escort.lua): instead of leafing through the
+--  catalogue book, the store's tailor NPC walks the player from the counter to the fitting room
+--  door (Config.Locations[].doorRoom) before fading into the fitting room, and returns the player
+--  outside the fitting door (exitWardrobe) on exit.
+-- ---------------------------------------------------------------------
+Config.Clothing.escort = {
+    enabled = true,
+    targetModel = 'S_M_M_Tailor_01',
+    npcSpeed = 1.1,
+    playerSpeed = 0.85,
+    leadMs = 3000,        -- tailor starts walking ahead first
+    walkMs = 5500,        -- bounded walk time for the player to reach the fitting room door
+    arriveDistance = 1.8, -- stop waiting early once the player reaches the door
+    useExitCoords = true, -- place the player at exitWardrobe when leaving the fitting room
+    -- Fallback coordinates for existing DB-stored locations that predate doorRoom / exitWardrobe
+    locations = {
+        valentine_clothing  = { doorRoom = vector3(-321.92, 764.86, 117.44),   exitWardrobe = vector4(-322.57, 771.95, 116.44, 23.65) },
+        saintdenis_clothing = { doorRoom = vector3(2553.27, -1161.21, 53.60),  exitWardrobe = vector4(2552.91, -1161.32, 52.68, 89.54) },
+        blackwater_clothing = { doorRoom = vector3(-766.47, -1293.27, 43.84),  exitWardrobe = vector4(-764.82, -1291.39, 42.83, 271.27) },
+        tumbleweed_clothing = { doorRoom = vector3(-5481.28, -2935.14, -0.4),  exitWardrobe = vector4(-5482.74, -2935.01, -1.4, 80.17) },
+    },
 }
 
 -- ---------------------------------------------------------------------

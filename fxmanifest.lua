@@ -5,7 +5,7 @@ lua54 'yes'
 name 'w_clothing'
 author 'Wraith Studio'
 description 'Standalone clothing stores, wardrobes, saved outfits and clothing states. Compatible with w_core, VORP, RSG and QBR.'
-version '1.0.1'
+version '1.0.2'
 
 shared_scripts {
     '@w_lib/init.lua',
@@ -48,6 +48,7 @@ client_scripts {
     'client/editor/editor.lua',
     'client/editor/panel.lua',
     'client/clothing/catalogue.lua',
+    'client/clothing/escort.lua',
     'client/services/locations.lua',
     'client/clothing/store.lua',
     'client/clothing/states.lua',
